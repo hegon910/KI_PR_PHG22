@@ -13,6 +13,8 @@ public class HorrorGameFSM : MonoBehaviour
     [Header("Timing Settings")]
     [SerializeField] private float minScanTime = 10f;
     [SerializeField] private int minFloorPlanes = 5;
+    [SerializeField] private CanvasGroup fadePanel; 
+    [SerializeField] private float screenFadeSpeed = 1f;
 
     [Header("Ghost Settings")]
     public GameObject ghostPrefab;
@@ -73,12 +75,13 @@ public class HorrorGameFSM : MonoBehaviour
             Log("귀신 생성 실패: 적절한 위치 없음");
             return;
         }
+        if (IsNearWall(spawnPos))
+            return;
 
         Quaternion rotation = Quaternion.LookRotation(Camera.main.transform.forward);
         rotation = Quaternion.Euler(0, rotation.eulerAngles.y, 0);
         currentGhost = Instantiate(ghostPrefab, spawnPos, rotation);
         lastGhostPosition = spawnPos;
-
         Log("귀신 미리 등장 (존재만 함)");
     }
 
@@ -122,11 +125,28 @@ public class HorrorGameFSM : MonoBehaviour
         if (currentGhost == null) return;
 
         Transform cam = Camera.main.transform;
+        Vector3 direction = (cam.position - currentGhost.transform.position).normalized;
+        direction.y = 0f;
+        if (direction.sqrMagnitude > 0.001f)
+        {
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
+            currentGhost.transform.rotation = Quaternion.Slerp(currentGhost.transform.rotation, lookRotation, Time.deltaTime * 5f);
+        }
+
+        Animator animator = currentGhost.GetComponentInChildren<Animator>();
+        if (animator != null)
+            animator.SetBool("Walking", true);
+
         currentGhost.transform.position = Vector3.MoveTowards(
             currentGhost.transform.position,
             cam.position,
             approachSpeed * Time.deltaTime
         );
+
+        if (fadePanel != null)
+        {
+            fadePanel.alpha = Mathf.MoveTowards(fadePanel.alpha, 1f, screenFadeSpeed * Time.deltaTime);
+        }
 
         float distance = Vector3.Distance(currentGhost.transform.position, cam.position);
 
@@ -144,6 +164,16 @@ public class HorrorGameFSM : MonoBehaviour
         }
     }
 
+    bool IsNearWall(Vector3 spawnPoint, float minWallDistance = 0.4f)
+    {
+        foreach (var wall in planeRecorder.verticalPlanes)
+        {
+            float dist = Vector3.Distance(spawnPoint, wall.transform.position);
+            if (dist < minWallDistance)
+                return true;
+        }
+        return false;
+    }
     bool TryGetGhostMaterial(out Material mat)
     {
         mat = null;

@@ -14,12 +14,15 @@ public class PlaneRecorder : MonoBehaviour
     private float allowedHeightOffset = 1.0f;
 
     public List<ARPlane> validFloorPlanes = new List<ARPlane>();
+    public List<ARPlane> verticalPlanes = new();
+
     private HashSet<ARPlane> usedPlanes = new HashSet<ARPlane>();
 
     void Update()
     {
         
 
+        verticalPlanes.Clear();
         validFloorPlanes.Clear();
         minYRecorded = float.MaxValue;
 
@@ -27,6 +30,12 @@ public class PlaneRecorder : MonoBehaviour
         foreach (var plane in planeManager.trackables)
         {
             if (plane.alignment != PlaneAlignment.HorizontalUp) continue;
+            
+            if (plane.alignment == PlaneAlignment.Vertical)
+            {
+                verticalPlanes.Add(plane);
+                continue;
+            }
 
             if (plane.size.x * plane.size.y < 0.5f) continue;
 

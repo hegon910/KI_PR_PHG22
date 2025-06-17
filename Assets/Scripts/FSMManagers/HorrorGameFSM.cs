@@ -93,11 +93,12 @@ public class HorrorGameFSM : MonoBehaviour
         {
             ghostWatchTimer += Time.deltaTime;
 
-            if (ghostWatchTimer >= 1.5f)
+            if (ghostWatchTimer >= 2.0f)
             {
                 ghostTriggerCount++;
                 Log($"귀신 인지 횟수 : {ghostTriggerCount}");
 
+                // 🔊 사운드
                 var audio = currentGhost.GetComponent<AudioSource>();
                 if (audio != null && !audio.isPlaying)
                     audio.Play();
@@ -110,6 +111,8 @@ public class HorrorGameFSM : MonoBehaviour
                 {
                     Destroy(currentGhost);
                     ghostWatchTimer = 0f;
+
+                    
                     TransitionTo(HorrorGameState.GhostPlanted);
                 }
             }
@@ -188,9 +191,15 @@ public class HorrorGameFSM : MonoBehaviour
     {
         Vector3 toGhost = (ghost.position - Camera.main.transform.position).normalized;
         float dot = Vector3.Dot(Camera.main.transform.forward, toGhost);
-        return dot > Mathf.Cos(30f * Mathf.Deg2Rad);
-    }
 
+        float angleThreshold = 15f; // 시야 중앙 15도 이내만 인식
+        float distanceThreshold = 1.5f; // 너무 멀면 인식 안 함
+
+        float distance = Vector3.Distance(Camera.main.transform.position, ghost.position);
+        if (distance > distanceThreshold) return false;
+
+        return dot > Mathf.Cos(angleThreshold * Mathf.Deg2Rad);
+    }
     void TransitionTo(HorrorGameState nextState)
     {
         Log($"State Changed : {currentState} -> {nextState}");

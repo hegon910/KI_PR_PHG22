@@ -11,7 +11,7 @@ public class PlaneRecorder : MonoBehaviour
     private float minYRecorded = float.MaxValue;
 
     //  허용 높이 편차를 늘려서 자잘한 Y차이 허용 (0.2f → 0.4f)
-    private float allowedHeightOffset = 0.4f;
+    private float allowedHeightOffset = 1.0f;
 
     public List<ARPlane> validFloorPlanes = new List<ARPlane>();
     private HashSet<ARPlane> usedPlanes = new HashSet<ARPlane>();
@@ -94,7 +94,7 @@ public class PlaneRecorder : MonoBehaviour
             {
                 if (Physics.Raycast(spawnPoint, dir, checkDistance)) nearbyWallCount++;
             }
-            if(nearbyWallCount > 2) continue; // 4방향 중 3개 이상 벽이 있으면 제외
+            if(nearbyWallCount > 0) continue; // 4방향 중 3개 이상 벽이 있으면 제외
 
             if (Physics.CheckSphere(spawnPoint + Vector3.up * 0.5f, 0.3f)) continue;
 

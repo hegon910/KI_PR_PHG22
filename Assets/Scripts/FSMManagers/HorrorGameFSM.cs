@@ -1,8 +1,7 @@
-﻿using UnityEngine;
-using UnityEngine.Rendering;
+﻿// HorrorGameFSM.cs (리팩토링 + 걸어오기 연출 + 페이드아웃 처리)
+
+using UnityEngine;
 using UnityEngine.XR.ARFoundation;
-using UnityEngine.XR.ARSubsystems;
-using Unity.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -20,16 +19,16 @@ public class HorrorGameFSM : MonoBehaviour
     private GameObject currentGhost;
     private float ghostWatchTimer;
     private int ghostTriggerCount;
+    private Vector3? lastGhostPosition;
+    [SerializeField] private float minDistanceBetweenGhosts = 2.5f;
+    [SerializeField] private float approachSpeed = 0.5f;
+    [SerializeField] private float fadeOutDistance = 0.5f;
 
     [Header("AR Components")]
-    public ARRaycastManager raycastManager;
     public LayerMask obstacleMask;
-
     private float stateTimer;
-    private List<ARRaycastHit> hits = new();
     [SerializeField] private TMPro.TextMeshProUGUI debugText;
 
-    #region Unity Life‑cycle
     private void Start()
     {
         Log("초기 상태 : Idle");
@@ -58,33 +57,29 @@ public class HorrorGameFSM : MonoBehaviour
                 break;
 
             case HorrorGameState.GameOver:
+                if (currentGhost != null)
+                    MoveGhostTowardCamera();
                 break;
         }
     }
-    #endregion
 
-    #region State Helpers
     void SpawnGhostIfNeeded()
     {
         if (currentGhost != null || ghostPrefab == null) return;
 
-        foreach (var plane in planeRecorder.validFloorPlanes)
+        Vector3 spawnPos = planeRecorder.GetSpawnPointHiddenFromCamera(2.5f, 30f);
+        if (spawnPos == Vector3.zero)
         {
-            if (!IsHorizontal(plane)) continue;
-            if (!IsPlaneVisibleToCamera(plane)) continue;
-
-            Vector3 spawnPos = GetPlaneVisualCenter(plane);
-            if (!IsPositionClearAround(spawnPos, 1.0f)) continue;
-
-            Quaternion rotation = Quaternion.LookRotation(Camera.main.transform.forward);
-            rotation = Quaternion.Euler(0, rotation.eulerAngles.y, 0);
-
-            currentGhost = Instantiate(ghostPrefab, spawnPos, rotation);
-            Log("귀신 등장");
+            Log("귀신 생성 실패: 적절한 위치 없음");
             return;
         }
 
-        Log("귀신 등장 가능한 장소 없음");
+        Quaternion rotation = Quaternion.LookRotation(Camera.main.transform.forward);
+        rotation = Quaternion.Euler(0, rotation.eulerAngles.y, 0);
+        currentGhost = Instantiate(ghostPrefab, spawnPos, rotation);
+        lastGhostPosition = spawnPos;
+
+        Log("귀신 미리 등장 (존재만 함)");
     }
 
     void TrackGhostLooking()
@@ -94,10 +89,15 @@ public class HorrorGameFSM : MonoBehaviour
         if (IsPlayerLookingAtGhost(currentGhost.transform))
         {
             ghostWatchTimer += Time.deltaTime;
+
             if (ghostWatchTimer >= 1.5f)
             {
                 ghostTriggerCount++;
                 Log($"귀신 인지 횟수 : {ghostTriggerCount}");
+
+                var audio = currentGhost.GetComponent<AudioSource>();
+                if (audio != null && !audio.isPlaying)
+                    audio.Play();
 
                 if (ghostTriggerCount >= 3)
                 {
@@ -116,51 +116,49 @@ public class HorrorGameFSM : MonoBehaviour
             ghostWatchTimer = 0f;
         }
     }
-    #endregion
 
-    #region Utility Methods
-    bool IsPlaneVisibleToCamera(ARPlane plane)
+    void MoveGhostTowardCamera()
     {
-        Vector3 viewportPoint = Camera.main.WorldToViewportPoint(plane.transform.position);
-        return viewportPoint.z > 0 && viewportPoint.x >= 0 && viewportPoint.x <= 1 && viewportPoint.y >= 0 && viewportPoint.y <= 1;
-    }
+        if (currentGhost == null) return;
 
-    bool IsHorizontal(ARPlane plane)
-    {
-        return Vector3.Dot(plane.normal, Vector3.up) > 0.9f;
-    }
+        Transform cam = Camera.main.transform;
+        currentGhost.transform.position = Vector3.MoveTowards(
+            currentGhost.transform.position,
+            cam.position,
+            approachSpeed * Time.deltaTime
+        );
 
-    bool IsPositionClearAround(Vector3 position, float distance)
-    {
-        Vector3[] directions =
+        float distance = Vector3.Distance(currentGhost.transform.position, cam.position);
+
+        if (TryGetGhostMaterial(out Material ghostMat))
         {
-            Vector3.forward, Vector3.back,
-            Vector3.right, Vector3.left,
-            Vector3.up, Vector3.down
-        };
-
-        foreach (var dir in directions)
-        {
-            if (Physics.Raycast(position, dir, distance, obstacleMask))
-                return false;
+            Color color = ghostMat.color;
+            color.a = Mathf.Clamp01(distance / fadeOutDistance);
+            ghostMat.color = color;
         }
-        return true;
+
+        if (distance <= 0.1f)
+        {
+            Log("게임 오버: 귀신이 도달함");
+            Destroy(currentGhost);
+        }
     }
 
-    Vector3 GetPlaneVisualCenter(ARPlane plane)
+    bool TryGetGhostMaterial(out Material mat)
     {
-        if (!plane.boundary.IsCreated || plane.boundary.Length == 0)
-            return plane.center;
-
-        Vector2 avg = plane.boundary.Aggregate(Vector2.zero, (acc, v) => acc + v) / plane.boundary.Length;
-        return plane.transform.TransformPoint(new Vector3(avg.x, 0, avg.y));
+        mat = null;
+        if (currentGhost == null) return false;
+        var renderer = currentGhost.GetComponentInChildren<Renderer>();
+        if (renderer == null) return false;
+        mat = renderer.material;
+        return true;
     }
 
     bool IsPlayerLookingAtGhost(Transform ghost)
     {
         Vector3 toGhost = (ghost.position - Camera.main.transform.position).normalized;
         float dot = Vector3.Dot(Camera.main.transform.forward, toGhost);
-        return dot > Mathf.Cos(30f * Mathf.Deg2Rad); // 30도 이내만 인식
+        return dot > Mathf.Cos(30f * Mathf.Deg2Rad);
     }
 
     void TransitionTo(HorrorGameState nextState)
@@ -170,7 +168,7 @@ public class HorrorGameFSM : MonoBehaviour
         stateTimer = 0f;
     }
 
-    bool PlayerStartedWalking() => true; // 실제 구현 필요
+    bool PlayerStartedWalking() => true; // 구현 필요 시 교체
 
     void Log(string msg)
     {
@@ -178,5 +176,4 @@ public class HorrorGameFSM : MonoBehaviour
         if (debugText != null)
             debugText.text += $"\n{msg}";
     }
-    #endregion
 }

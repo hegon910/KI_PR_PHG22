@@ -6465,7 +6465,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1701913622}
   - component: {fileID: 1701913621}
-  - component: {fileID: 1701913623}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -6491,6 +6490,7 @@ MonoBehaviour:
   minFloorPlanes: 1
   ghostPrefab: {fileID: 8718304558571753301, guid: cce72463e9f636d43b7b6512741d63e1,
     type: 3}
+  minDistanceBetweenGhosts: 5
   raycastManager: {fileID: 568888064}
   obstacleMask:
     serializedVersion: 2
@@ -6511,20 +6511,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1701913623
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1701913620}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2e88e08e1927c9243ad78225e0ce2493, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  delay: 0.5
-  fadeDuration: 1
 --- !u!1 &1756045394
 GameObject:
   m_ObjectHideFlags: 0
